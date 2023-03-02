@@ -1,0 +1,2 @@
+#!/bin/bash
+git log -1 --pretty=%ad --grep="\[date skip\]" --invert-grep "$@"
