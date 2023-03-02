@@ -1,0 +1,72 @@
+:PROPERTIES:
+:ID:       32BBE405-C34A-4CBD-A888-FF714441C544
+:END:
+#+title: git-mtime
+#+author: Jeff Kreeftmeijer
+#+date: 2023-03-02
+
+Given a repository with two commits:
+
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :dir /tmp/git-mtime
+#+headers: :mkdirp yes
+#+headers: :prologue git init --quiet && echo "filet.xt" >> file.txt && git add . && git commit --quiet --date="17 minutes ago" --message 'Add file.txt' && echo "file.txt" >> file.txt && git add . && git commit --quiet --message 'Update file.txt' --message '[date skip]'
+#+headers: :epilogue rm -rf /tmp/git-mtime
+#+begin_src shell
+ git log
+#+end_src
+
+#+RESULTS[e3f95eb0748392ac7f6a12633587ac895819797a]:
+#+begin_example
+commit 7c968f930a7782a339aaa07488018522c0548790
+Author: Jeff Kreeftmeijer <jeffkreeftmeijer@gmail.com>
+Date:   Thu Mar 2 11:26:56 2023 +0100
+
+    Update file.txt
+    
+    [date skip]
+
+commit fbae95bc56608eed6096965bfb76c8c1f2000af2
+Author: Jeff Kreeftmeijer <jeffkreeftmeijer@gmail.com>
+Date:   Thu Mar 2 11:09:56 2023 +0100
+
+    Add file.txt
+#+end_example
+
+To get a file's last update time from git (instead of its [[id:F1569615-ED2C-4D7B-8D62-457C4FA3D85D][local mtime]]), use =git log= with the following options:
+
+- =--pretty=%ad= :: Format the commit message to only show the author date
+- =--date=format:"%F %R"= :: Format the returned date with =%F %R= as the =strftime= format, which shows a full date and time:
+- =-1= :: Only return the last commit
+
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :dir /tmp/git-mtime
+#+headers: :mkdirp yes
+#+headers: :prologue git init --quiet && echo "filet.xt" >> file.txt && git add . && git commit --quiet --date="17 minutes ago" --message 'Add file.txt' && echo "file.txt" >> file.txt && git add . && git commit --quiet --message 'Update file.txt' --message '[date skip]'
+#+headers: :epilogue rm -rf /tmp/git-mtime
+#+begin_src shell
+ git log -1 --pretty=%ad --date=format:"%F %R" file.txt
+#+end_src
+
+#+RESULTS[ac82d35080e85f085415bed2fd23865147efc2da]:
+: 2023-03-02 08:17
+
+In order to have commits that update files without updating its modified time in git, [[id:7A482AE1-88CB-46DC-9238-8A456F7D8E95][filter the commits]] out that match a specific flag in their messages, like =[skip date]=:
+
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :dir /tmp/git-mtime
+#+headers: :mkdirp yes
+#+headers: :prologue git init --quiet && echo "filet.xt" >> file.txt && git add . && git commit --quiet --date="17 minutes ago" --message 'Add file.txt' && echo "file.txt" >> file.txt && git add . && git commit --quiet --message 'Update file.txt' --message '[date skip]'
+#+headers: :epilogue rm -rf /tmp/git-mtime
+#+begin_src shell
+ git log -1 --pretty=%ad --date=format:"%F %R" --grep="\[date skip\]" --invert-grep file.txt
+#+end_src
+
+#+RESULTS[8e8dd00975d74b1d2a6acd3c857223754d8b5f11]:
+: 2023-03-02 08:03
