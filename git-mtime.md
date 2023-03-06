@@ -1,4 +1,4 @@
-git-mtime is a Git extension that finds a [last modified times through Git commits](https://jeffkreeftmeijer.com/git-file-modified-time/):
+[git-mtime](https://github.com/jeffkreeftmeijer/git-mtime) is a Git extension that finds a [last modified times through Git commits](https://jeffkreeftmeijer.com/git-file-modified-time/):
 
 Git repositories provide records of deliberate updates through commit logs. By retrieving the last commit date for a specific file, we can find the last date a file was purposefully updated.
 

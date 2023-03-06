@@ -6,7 +6,7 @@
 #+date: 2023-03-06
 #+options: toc:nil
 
-git-mtime is a Git extension that finds a [[id:32BBE405-C34A-4CBD-A888-FF714441C544][last modified times through Git commits]]:
+[[https://github.com/jeffkreeftmeijer/git-mtime][git-mtime]] is a Git extension that finds a [[id:32BBE405-C34A-4CBD-A888-FF714441C544][last modified times through Git commits]]:
 
 Git repositories provide records of deliberate updates through commit logs. By retrieving the last commit date for a specific file, we can find the last date a file was purposefully updated.
 
