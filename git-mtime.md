@@ -3,7 +3,7 @@
 Git repositories provide records of deliberate updates through commit logs. By retrieving the last commit date for a specific file, we can find the last date a file was purposefully updated.
 
 ```shell
-#!/bin/sh
+#!/bin/bash
 path="${@: -1}"
 dir=$(dirname "$path")
 
@@ -13,7 +13,7 @@ hash=$(git -C "$dir" log \
            --grep="\[date skip\]" \
            --invert-grep \
            -- $(basename "$path") |\
-           sort --reverse |\
+           sort -r |\
            awk '{ print $2 }' |\
            head -n1)
 
