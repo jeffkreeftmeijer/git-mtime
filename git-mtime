@@ -1,2 +1,15 @@
 #!/bin/bash
-git log -1 --pretty=%ad --grep="\[date skip\]" --invert-grep "$@"
+path="${@: -1}"
+dir=$(dirname "$path")
+
+hash=$(git -C "$dir" log \
+	   --format="%ad %H" \
+	   --date=format:"%s" \
+	   --grep="\[date skip\]" \
+	   --invert-grep \
+	   -- $(basename "$path") |\
+	   sort --reverse |\
+	   awk '{ print $2 }' |\
+	   head -n1)
+
+git -C "$dir" show --format="%ad" --quiet "${@:1:$#-1}" "${hash}"

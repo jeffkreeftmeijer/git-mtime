@@ -1,160 +1,217 @@
 :PROPERTIES:
-:ID:       32BBE405-C34A-4CBD-A888-FF714441C544
+:ID:       1A128F38-0D9B-4D35-B072-EC79AE83ECB1
 :END:
 #+title: git-mtime
 #+author: Jeff Kreeftmeijer
-#+date: 2023-03-02
+#+date: 2023-03-06
 #+options: toc:nil
 
-As the name suggests, the [[id:F1569615-ED2C-4D7B-8D62-457C4FA3D85D][modified time]] of a file is updated whenever the file is changed.
-Although regular modified times work most of the time, some situations require a more cautious approach.
+git-mtime is a Git extension that finds a [[id:32BBE405-C34A-4CBD-A888-FF714441C544][last modified times through Git commits]]:
 
-For example, when using modified times as the last updated date for a published article, the date should only update if the file received substantive changes rather than structural ones.
-In those cases, an update should be a deliberate action.
+Git repositories provide records of deliberate updates through commit logs. By retrieving the last commit date for a specific file, we can find the last date a file was purposefully updated.
 
-Git repositories provide records of deliberate updates through commit logs.
-By retrieving the last commit date for a specific file, we can find the last date a file was purposefully updated.
-
-* Getting the modified date
-:PROPERTIES:
-:CUSTOM_ID: getting-the-modified-date
-:END:
-
-Given a repository with two commits:
-
-#+headers: :cache yes
-#+headers: :results scalar
-#+headers: :exports both
-#+headers: :dir /tmp/git-mtime
-#+headers: :mkdirp yes
-#+headers: :prologue git init --quiet && echo "filet.xt" >> file.txt && git add . && git commit --quiet --date="17 minutes ago" --message 'Add file.txt' && echo "file.txt" >> file.txt && git add . && git commit --quiet --message 'Update file.txt' --message '[date skip]'
-#+headers: :epilogue rm -rf /tmp/git-mtime
-#+begin_src shell
- git log
-#+end_src
-
-#+RESULTS[e3f95eb0748392ac7f6a12633587ac895819797a]:
-#+begin_example
-commit 7c968f930a7782a339aaa07488018522c0548790
-Author: Jeff Kreeftmeijer <jeffkreeftmeijer@gmail.com>
-Date:   Thu Mar 2 11:26:56 2023 +0100
-
-    Update file.txt
-    
-    [date skip]
-
-commit fbae95bc56608eed6096965bfb76c8c1f2000af2
-Author: Jeff Kreeftmeijer <jeffkreeftmeijer@gmail.com>
-Date:   Thu Mar 2 11:09:56 2023 +0100
-
-    Add file.txt
-#+end_example
-
-We'll use =git log= with the following options:
-
-- =--pretty=%ad= :: Format the commit message to only show the author date
-- =--date=format:"%F %R"= :: Format the returned date with =%F %R= as the =strftime= format, which shows a full date and time:
-- =-1= :: Only return the last commit
-
-#+headers: :cache yes
-#+headers: :results scalar
-#+headers: :exports both
-#+headers: :dir /tmp/git-mtime
-#+headers: :mkdirp yes
-#+headers: :prologue git init --quiet && echo "filet.xt" >> file.txt && git add . && git commit --quiet --date="17 minutes ago" --message 'Add file.txt' && echo "file.txt" >> file.txt && git add . && git commit --quiet --message 'Update file.txt' --message '[date skip]'
-#+headers: :epilogue rm -rf /tmp/git-mtime
-#+begin_src shell
- git log -1 --pretty=%ad --date=format:"%F %R" file.txt
-#+end_src
-
-#+RESULTS[ac82d35080e85f085415bed2fd23865147efc2da]:
-: 2023-03-02 08:17
-
-In order to allow commits that update files without updating their returned modified times, [[id:7A482AE1-88CB-46DC-9238-8A456F7D8E95][filter the commits]] out that match a specific flag in their messages, like =[skip date]=:
-
-#+headers: :cache yes
-#+headers: :results scalar
-#+headers: :exports both
-#+headers: :dir /tmp/git-mtime
-#+headers: :mkdirp yes
-#+headers: :prologue git init --quiet && echo "filet.xt" >> file.txt && git add . && git commit --quiet --date="17 minutes ago" --message 'Add file.txt' && echo "file.txt" >> file.txt && git add . && git commit --quiet --message 'Update file.txt' --message '[date skip]'
-#+headers: :epilogue rm -rf /tmp/git-mtime
-#+begin_src shell
- git log -1 --pretty=%ad --date=format:"%F %R" --grep="\[date skip\]" --invert-grep file.txt
-#+end_src
-
-#+RESULTS[8e8dd00975d74b1d2a6acd3c857223754d8b5f11]:
-: 2023-03-02 08:03
-
-* Extending git
-:PROPERTIES:
-:CUSTOM_ID: extending-git
-:END:
-
-For easier reusability, we'll move the above command into a git extension by moving it to a script and calling it =git-mtime=:
-
-#+caption: =git-mtime=
+#+headers: :exports none
 #+headers: :shebang #!/bin/bash
 #+headers: :eval no
 #+headers: :tangle git-mtime
 #+begin_src shell
-  git log -1 --pretty=%ad --grep="\[date skip\]" --invert-grep "$@"
+  path="${@: -1}"
+  dir=$(dirname "$path")
+
+  hash=$(git -C "$dir" log \
+	     --format="%ad %H" \
+	     --date=format:"%s" \
+	     --grep="\[date skip\]" \
+	     --invert-grep \
+	     -- $(basename "$path") |\
+	     sort --reverse |\
+	     awk '{ print $2 }' |\
+	     head -n1)
+
+  git -C "$dir" show --format="%ad" --quiet "${@:1:$#-1}" "${hash}"
 #+end_src
 
-Symlink it to =/usr/local/bin/git-mtime=:
+#+INCLUDE: "git-mtime" src shell
 
+* Installation
+
+Download git-mtime and symlink it to =/usr/local/bin/git-mtime=:
+
+#+headers: :eval no
 #+headers: :prologue rm -f /usr/local/bin/git-mtime
 #+begin_src shell
+  curl --remote-name --silent https://raw.githubusercontent.com/jeffkreeftmeijer/git-mtime/main/git-mtime
   ln -s $(realpath git-mtime) /usr/local/bin/git-mtime
 #+end_src
 
-#+RESULTS:
+* Usage
 
-Because the script is available in the =$PATH= by symlinking it to =/user/local/bin=, it can be called by executing =git mtime=.
-It takes a file name and returns its last commit date:
+Execute =git mtime= with a path to a file in a Git repository:
 
+# Mon Mar 6 18:24:11 2023 +0100
 #+headers: :cache yes
 #+headers: :results scalar
 #+headers: :exports both
-#+headers: :dir /tmp/gtime
-#+headers: :mkdirp yes
-#+headers: :prologue git init --quiet && echo "file.txt" >> file.txt && git add . && git commit --quiet --message 'Add file.txt' && echo "file2.txt" >> file2.txt && git add . && git commit --quiet --date="one week ago" --message 'Add file2.txt'
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "file.txt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt' && cd repository
+#+headers: :epilogue cd .. && rm -rf repository
 #+begin_src shell
-git mtime file2.txt
+git mtime file.txt
 #+end_src
 
-#+RESULTS[681594cedf1edeb076243894c0b0b274a3c92731]:
-: Thu Feb 23 17:49:50 2023 +0100
+#+RESULTS[6ffa177f8cfbc3f212420df78adecbfdf2990cb8]:
+: Mon Mar 6 18:24:11 2023 +0100
 
-It works without passing a file name too.
-In that case, the latest update date for the repository is returned.
+Even outside of the repository, =git-mtime= can find the commit history and find a file's last update date:
 
+# Mon Mar 6 18:24:11 2023 +0100
 #+headers: :cache yes
 #+headers: :results scalar
 #+headers: :exports both
-#+headers: :dir /tmp/git-mtime
-#+headers: :mkdirp yes
-#+headers: :prologue git init --quiet && echo "file.txt" >> file.txt && git add . && git commit --quiet --message 'Add file.txt'
-#+headers: :epilogue rm -rf /tmp/git-mtime
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "file.txt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt'
+#+headers: :epilogue rm -rf repository
 #+begin_src shell
-  git mtime
+git mtime repository/file.txt
 #+end_src
 
-#+RESULTS[ba1bf849a36293872eaaa4edd20a272a70aa2cff]:
-: Thu Mar 2 17:49:47 2023 +0100
+#+RESULTS[5f748a5431444a86d5d06f69bdc09c001da2d05f]:
+: Mon Mar 6 18:24:11 2023 +0100
 
-By relying on =git-log=, =git-mtime= still supports the =--date= flag:
+By relying on =git-log= internally, =git-mtime= supports Git's  =--date= flag:
 
+# 2023-03-06 18:24
 #+headers: :cache yes
 #+headers: :results scalar
 #+headers: :exports both
-#+headers: :dir /tmp/gtime
-#+headers: :mkdirp yes
-#+headers: :prologue git init --quiet && echo "file.txt" >> file.txt && git add . && git commit --quiet --message 'Add file.txt'
-#+headers: :epilogue rm -rf /tmp/gtime
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "file.txt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt'
+#+headers: :epilogue rm -rf repository
 #+begin_src shell
-  git mtime --date=format:"%F %R" file.txt
+  git mtime --date=format:"%F %R" repository/file.txt
 #+end_src
 
-#+RESULTS[e3a016046e368d0bf8d049614ebcb0ea3101b78e]:
-: 2023-03-02 17:49
+#+RESULTS[7a61be146dc0b512144a890281e9ce4cab3fdd70]:
+: 2023-03-06 18:24
+
+If a commit touches a file, but you don't want to modify the file's modified time, mark the commit with =[date skip]= in its commit message to make =git-mtime= ignore it:
+
+# Mon Mar 6 18:24:11 2023 +0100
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "filet.xt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt' && git -C repository commit --allow-empty --quiet --date="2023-03-06 19:12:45" --author="Bob <bob@example.com>" --message 'Add another.txt'
+#+headers: :epilogue rm -rf repository
+#+begin_src shell
+  echo "file.txt" >> repository/file.txt
+  git -C repository add .
+  git -C repository commit --quiet --message 'Fix file.txt' --message "[date skip]"
+  ./git-mtime repository/file.txt
+#+end_src
+
+#+RESULTS[b8ecda2278e40dd12ddb1da12c48078a690b9a34]:
+: Mon Mar 6 18:24:11 2023 +0100
+
+* Testing :noexport:
+
+Given a repository with a single file:
+
+# Mon Mar 6 18:24:11 2023 +0100
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "file.txt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt'
+#+headers: :epilogue cd .. && rm -rf repository
+#+begin_src shell
+(cd repository && ../git-mtime file.txt)
+#+end_src
+
+#+RESULTS[d3c2b166135578613505a0487c03ba667b91ca48]:
+: Mon Mar 6 18:24:11 2023 +0100
+
+When passing no file name:
+
+# Mon Mar 6 19:12:45 2023 +0100
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "file.txt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt' && git -C repository commit --allow-empty --quiet --date="2023-03-06 19:12:45" --author="Bob <bob@example.com>" --message 'Add another.txt'
+#+headers: :epilogue rm -rf repository
+#+begin_src shell
+(cd repository && ../git-mtime)
+#+end_src
+
+#+RESULTS[c8f20b955fee15e290fc24f39f4a93950c9f9342]:
+: Mon Mar 6 19:12:45 2023 +0100
+
+Given a repository in another directory:
+
+# Mon Mar 6 18:24:11 2023 +0100
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "file.txt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt'
+#+headers: :epilogue rm -rf repository
+#+begin_src shell
+./git-mtime repository/file.txt
+#+end_src
+
+#+RESULTS[42be1f8acf1868eda1a5cd9f3c4296dd31c26522]:
+: Mon Mar 6 18:24:11 2023 +0100
+
+Given a repository with a multiple files:
+
+# Mon Mar 6 18:24:11 2023 +0100
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "file.txt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt' && git -C repository commit --allow-empty --quiet --date="2023-03-06 19:12:45" --author="Bob <bob@example.com>" --message 'Add another.txt'
+#+headers: :epilogue rm -rf repository
+#+begin_src shell
+./git-mtime repository/file.txt
+#+end_src
+
+#+RESULTS[9d0324703704b77b50757b2a100ae7bb9ac3aebf]:
+: Mon Mar 6 18:24:11 2023 +0100
+
+Given a repository with a skipped commit:
+
+# Mon Mar 6 18:24:11 2023 +0100
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "filet.xt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt' && git -C repository commit --allow-empty --quiet --date="2023-03-06 19:12:45" --author="Bob <bob@example.com>" --message 'Add another.txt' && echo "file.txt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 19:55:34" --author="Alice <alice@example.com>" --message 'Fix file.txt' --message "[date skip]"
+#+headers: :epilogue rm -rf repository
+#+begin_src shell
+./git-mtime repository/file.txt
+#+end_src
+
+#+RESULTS[70f52e7e6bb7190580160513bf926128b068aaf2]:
+: Mon Mar 6 18:24:11 2023 +0100
+
+Given a repository non-chronological commits
+
+# Mon Mar 6 18:24:11 2023 +0100
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "filet.xt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt' && git -C repository commit --allow-empty --quiet --date="2023-03-06 19:12:45" --author="Bob <bob@example.com>" --message 'Add another.txt' && echo "file.txt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 15:11:11" --author="Alice <alice@example.com>" --message 'Fix file.txt'
+#+headers: :epilogue rm -rf repository
+#+begin_src shell
+./git-mtime repository/file.txt
+#+end_src
+
+#+RESULTS[8dc30180a4e9382a827530549ab6eb4387682954]:
+: Mon Mar 6 18:24:11 2023 +0100
+
+When passing a custom date format:
+
+# 2023-03-06 18:24
+#+headers: :cache yes
+#+headers: :results scalar
+#+headers: :exports both
+#+headers: :prologue mkdir -p repository && git init --quiet repository && echo "file.txt" >> repository/file.txt && git -C repository add . && git -C repository commit --quiet --date="2023-03-06 18:24:11" --author="Alice <alice@example.com>" --message 'Add file.txt'
+#+headers: :epilogue rm -rf repository
+#+begin_src shell
+./git-mtime --date=format:"%F %R" repository/file.txt
+#+end_src
+
+#+RESULTS[ef2743ce1eb00bcba411a1ae57f1beefed5b703e]:
+: 2023-03-06 18:24
