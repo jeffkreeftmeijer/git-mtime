@@ -8,7 +8,7 @@ hash=$(git -C "$dir" log \
 	   --grep="\[date skip\]" \
 	   --invert-grep \
 	   -- $(basename "$path") |\
-	   sort --reverse |\
+	   sort -r |\
 	   awk '{ print $2 }' |\
 	   head -n1)
 

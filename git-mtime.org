@@ -24,7 +24,7 @@ Git repositories provide records of deliberate updates through commit logs. By r
 	     --grep="\[date skip\]" \
 	     --invert-grep \
 	     -- $(basename "$path") |\
-	     sort --reverse |\
+	     sort -r |\
 	     awk '{ print $2 }' |\
 	     head -n1)
 
